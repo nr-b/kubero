@@ -35,8 +35,10 @@ import {
   V1Job,
 } from '@kubernetes/client-node';
 import { WebSocket } from 'ws';
+import jsonwebtoken from 'jsonwebtoken';
 import stream from 'stream';
 import internal from 'stream';
+import { fstat } from 'fs';
 
 @Injectable()
 export class KubernetesService {
@@ -1293,6 +1295,62 @@ export class KubernetesService {
       .substring(0, 13);
     const name = appName + '-' + pipelineName + '-' + id;
 
+    // TODO do not hardcode key
+    const jwtprivkey = `-----BEGIN EC PARAMETERS-----
+BggqhkjOPQMBBw==
+-----END EC PARAMETERS-----
+-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIGFiGSzmh/zXH85FXi64jngCTcj9zMDCyjbyfmrkfYzhoAoGCCqGSM49
+AwEHoUQDQgAE/y7+zb61GZT4e4zXI91N5kJHLDPWiwwIKqPPTbhhYeFu5RYufQeg
+UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
+-----END EC PRIVATE KEY-----`;
+
+    var token = jsonwebtoken.sign(
+      {
+        access: [
+          {
+            type: "repository",
+            name: repository.image, // TODO: this is user supplied input, and may allow users to over write other images
+            actions: ["push", "pull"]
+          }
+        ]
+      },
+      jwtprivkey,
+      {
+        issuer: "todo.kubero.dev",
+        subject: name,
+        audience: "registry.internal", // TODO
+        expiresIn: "3h" // TODO make configurable
+      }  
+    );
+    this.logger.log(`jwttoken: ${token}`);
+    const dockerauthconfig = {
+      "auths": {}
+    };
+    dockerauthconfig.auths[repository.image] = {token: token};
+    this.logger.log(dockerauthconfig);
+    const pushSecret = {
+      apiVersion: "v1",
+      kind: "Secret",
+      metadata: {
+        name: "kubero-pull-secret", // TODO
+      },
+      type: "kubernetes.io/dockerconfigjson",
+      data: {
+        ".dockerconfigjson": JSON.stringify(dockerauthconfig)
+      }
+    };
+    this.logger.log(pushSecret);
+
+    try {
+      await this.coreV1Api.replaceNamespacedSecret("kubero-pull-secret", namespace, pushSecret);
+    } catch (error) {
+      if (error.response?.body?.reason === 'NotFound') {
+        await this.coreV1Api.createNamespacedSecret(namespace, pushSecret);
+      } else {
+        throw error;
+      }
+    }
     job.metadata.name = name.substring(0, 53); // max 53 characters allowed within kubernetes
     //job.metadata.namespace = namespace;
     job.metadata.labels['job-name'] = name.substring(0, 53);
