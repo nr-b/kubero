@@ -35,7 +35,7 @@ import {
   V1Job,
 } from '@kubernetes/client-node';
 import { WebSocket } from 'ws';
-import jsonwebtoken from 'jsonwebtoken';
+import { sign as jwtsign } from 'jsonwebtoken';
 import stream from 'stream';
 import internal from 'stream';
 import { fstat } from 'fs';
@@ -1305,7 +1305,7 @@ AwEHoUQDQgAE/y7+zb61GZT4e4zXI91N5kJHLDPWiwwIKqPPTbhhYeFu5RYufQeg
 UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
 -----END EC PRIVATE KEY-----`;
 
-    var token = jsonwebtoken.sign(
+    var token = jwtsign(
       {
         access: [
           {
@@ -1320,7 +1320,8 @@ UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
         issuer: "todo.kubero.dev",
         subject: name,
         audience: "registry.internal", // TODO
-        expiresIn: "3h" // TODO make configurable
+        expiresIn: "3h", // TODO make configurable
+        algorithm: "ES256"
       }  
     );
     this.logger.log(`jwttoken: ${token}`);
@@ -1336,7 +1337,7 @@ UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
         name: "kubero-pull-secret", // TODO
       },
       type: "kubernetes.io/dockerconfigjson",
-      data: {
+      stringData: {
         ".dockerconfigjson": JSON.stringify(dockerauthconfig)
       }
     };
