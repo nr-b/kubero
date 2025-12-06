@@ -36,6 +36,7 @@ import {
 } from '@kubernetes/client-node';
 import { WebSocket } from 'ws';
 import { sign as jwtsign } from 'jsonwebtoken';
+import { importJWK, SignJWT } from 'jose';
 import stream from 'stream';
 import internal from 'stream';
 import { fstat } from 'fs';
@@ -1296,17 +1297,19 @@ export class KubernetesService {
     const name = appName + '-' + pipelineName + '-' + id;
 
     // TODO do not hardcode key
-    const jwtprivkey = `-----BEGIN EC PARAMETERS-----
+    /*const jwtprivkey = `-----BEGIN EC PARAMETERS-----
 BggqhkjOPQMBBw==
 -----END EC PARAMETERS-----
 -----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIGFiGSzmh/zXH85FXi64jngCTcj9zMDCyjbyfmrkfYzhoAoGCCqGSM49
 AwEHoUQDQgAE/y7+zb61GZT4e4zXI91N5kJHLDPWiwwIKqPPTbhhYeFu5RYufQeg
 UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
------END EC PRIVATE KEY-----`;
+-----END EC PRIVATE KEY-----`;*/
+    const alg = 'ES256';
+    const jwtprivkeystr = JSON.parse('{"crv":"P-256","d":"IIk1J5aNK55PUw9dnFP9KJz5d_4nb8d4cuoim9ckltc","kty":"EC","x":"Kh_NYttbTlFj7ecv4LjjzgcumlEFNlWfAwhcOPM_6K8","y":"Rb2VF8nGaqztkUCNycTpFlm3majGmSSVKcMBDHHi-k0"}');
+    const jwtprivkey = await importJWK(jwtprivkeystr, alg);
 
-    var token = jwtsign(
-      {
+    var token = await new SignJWT({
         access: [
           {
             type: "repository",
@@ -1314,16 +1317,14 @@ UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
             actions: ["push", "pull"]
           }
         ]
-      },
-      jwtprivkey,
-      {
-        issuer: "todo.kubero.dev",
-        subject: name,
-        audience: "registry.internal", // TODO
-        expiresIn: "3h", // TODO make configurable
-        algorithm: "ES256"
-      }  
-    );
+      }).setProtectedHeader({ alg, kid: "0" })
+      .setIssuedAt()
+      .setIssuer('todo.kubero.dev') // TODO
+      .setSubject(name)
+      .setAudience('registry.internal') // TODO
+      .setExpirationTime("3h")
+      .sign(jwtprivkey);
+
     this.logger.log(`jwttoken: ${token}`);
     const dockerauthconfig = {
       "auths": {}
