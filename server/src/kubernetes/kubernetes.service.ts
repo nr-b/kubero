@@ -1305,6 +1305,19 @@ MHcCAQEEIGFiGSzmh/zXH85FXi64jngCTcj9zMDCyjbyfmrkfYzhoAoGCCqGSM49
 AwEHoUQDQgAE/y7+zb61GZT4e4zXI91N5kJHLDPWiwwIKqPPTbhhYeFu5RYufQeg
 UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
 -----END EC PRIVATE KEY-----`;*/
+/*
+TODOs:
+- fix injection of secret into build container
+- rename ecret from kubero-pull-secret to something build-specific
+- issue short-lived JWT for kubernetes to pull images
+- fix and test trivy with --repository-token
+- test buildpacks/nixpacks/runpacks
+- generate JWK and inject public key to kubernetes registry
+- properly set access.name below
+- properly set issuer, audience, subject, keyid
+- try to disable auto redirect by registry when token is missing
+- add a ui where user can issue a token for themselves
+*/
     const alg = 'ES256';
     const jwtprivkeystr = JSON.parse('{"crv":"P-256","d":"IIk1J5aNK55PUw9dnFP9KJz5d_4nb8d4cuoim9ckltc","kty":"EC","x":"Kh_NYttbTlFj7ecv4LjjzgcumlEFNlWfAwhcOPM_6K8","y":"Rb2VF8nGaqztkUCNycTpFlm3majGmSSVKcMBDHHi-k0"}');
     const jwtprivkey = await importJWK(jwtprivkeystr, alg);
@@ -1313,7 +1326,8 @@ UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
         access: [
           {
             type: "repository",
-            name: repository.image, // TODO: this is user supplied input, and may allow users to over write other images
+            //name: repository.image, // TODO: this is user supplied input, and may allow users to over write other images
+            name: "test-prod",
             actions: ["push", "pull"]
           }
         ]
@@ -1329,7 +1343,8 @@ UWXx9ZAmUzPLLCISFSfsOJrI7SS3CPQyxg==
     const dockerauthconfig = {
       "auths": {}
     };
-    dockerauthconfig.auths[repository.image] = {token: token};
+    // below does not work - buildah always makes a request to obtain the JWT - we need an endpoint for that further increating complexity :/
+    dockerauthconfig.auths[repository.image] = {"identityToken": token};
     this.logger.log(dockerauthconfig);
     const pushSecret = {
       apiVersion: "v1",
