@@ -6,7 +6,7 @@ import {
   IKubectlApp,
   IStorageClass,
 } from './kubernetes.interface';
-import { IPipeline } from '../pipelines/pipelines.interface';
+import { IPipeline, IRegistry } from '../pipelines/pipelines.interface';
 import { KubectlPipeline } from '../pipelines/pipeline/pipeline';
 import { KubectlApp, App } from '../apps/app/app';
 import { dockerfileTemplate } from '../deployments/templates/dockerfile.yaml';
@@ -1266,6 +1266,136 @@ export class KubernetesService {
     }
   }
 
+  private async makeDockerAuthConfig(
+    registry: IRegistry,
+    username: string,
+    password: string,
+  ) {
+    const registryHost = registry.host;
+
+    const authString = `${username}:${password}`;
+    const authBase64 = Buffer.from(authString).toString('base64');
+
+    const authConfig = {
+      auths: {
+        [registryHost]: {
+          auth: authBase64,
+        },
+      },
+    };
+
+    return authConfig;
+  }
+
+  public async getSecret(
+    secretName: string,
+  ): Promise<{ [key: string]: string } | null> {
+    const namespace = process.env.KUBERO_NAMESPACE || 'kubero';
+
+    try {
+      const secret = await this.coreV1Api.readNamespacedSecret(
+        secretName,
+        namespace,
+      );
+
+      if (!secret.body.data) {
+        return null;
+      }
+
+      const decodedData: any = {};
+      for (const [key, value] of Object.entries(secret.body.data)) {
+        decodedData[key] = Buffer.from(value as string, 'base64').toString(
+          'utf-8',
+        );
+      }
+
+      return decodedData;
+    } catch (error) {
+      if (error.response?.body?.reason === 'NotFound') {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  public async upsertSecret(
+    secretName: string,
+    secretData: { [key: string]: string },
+  ) {
+    const namespace = process.env.KUBERO_NAMESPACE || 'kubero';
+    const secretUpsertRequest = {
+      apiVersion: 'v1',
+      kind: 'Secret',
+      metadata: {
+        name: secretName,
+      },
+      type: 'Opaque',
+      stringData: secretData,
+    };
+
+    try {
+      await this.coreV1Api.replaceNamespacedSecret(
+        secretName,
+        namespace,
+        secretUpsertRequest,
+      );
+    } catch (error) {
+      if (error.response?.body?.reason === 'NotFound') {
+        await this.coreV1Api.createNamespacedSecret(
+          namespace,
+          secretUpsertRequest,
+        );
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  private async createPushSecret(
+    namespace: string,
+    jobName: string,
+    registryUsername: string,
+    registryPassword: string,
+  ) {
+    const conf = await this.getKuberoConfig(
+      process.env.KUBERO_NAMESPACE || 'kubero',
+    );
+    const secretName = 'push-' + jobName;
+
+    const dockerauthconfig = await this.makeDockerAuthConfig(
+      conf.spec.registry,
+      registryUsername,
+      registryPassword,
+    );
+    const pushSecret = {
+      apiVersion: 'v1',
+      kind: 'Secret',
+      metadata: {
+        name: secretName,
+      },
+      type: 'kubernetes.io/dockerconfigjson',
+      stringData: {
+        '.dockerconfigjson': JSON.stringify(dockerauthconfig),
+      },
+    };
+
+    try {
+      await this.coreV1Api.replaceNamespacedSecret(
+        secretName,
+        namespace,
+        pushSecret,
+      );
+    } catch (error) {
+      if (error.response?.body?.reason === 'NotFound') {
+        await this.coreV1Api.createNamespacedSecret(namespace, pushSecret);
+      } else {
+        throw error;
+      }
+    }
+
+    return secretName;
+  }
+
   public async createBuildJob(
     namespace: string,
     appName: string,
@@ -1278,6 +1408,8 @@ export class KubernetesService {
     },
     repository: {
       registry: string;
+      registryUsername: string;
+      registryPassword: string;
       image: string;
       tag: string;
     },
@@ -1293,6 +1425,12 @@ export class KubernetesService {
       .replace(/[T]/g, '-')
       .substring(0, 13);
     const name = appName + '-' + pipelineName + '-' + id;
+    const secretName = await this.createPushSecret(
+      namespace,
+      name,
+      repository.registryUsername,
+      repository.registryPassword,
+    );
 
     job.metadata.name = name.substring(0, 53); // max 53 characters allowed within kubernetes
     //job.metadata.namespace = namespace;
@@ -1309,11 +1447,12 @@ export class KubernetesService {
     job.spec.template.spec.serviceAccount = appName + '-kuberoapp';
     job.spec.template.spec.initContainers[0].env[0].value = git.url;
     job.spec.template.spec.initContainers[0].env[1].value = git.ref;
-    const imageUrl = repository.registry + '/' + repository.image
+    const imageUrl = repository.registry + '/' + repository.image;
     job.spec.template.spec.containers[0].env[0].value = imageUrl;
     job.spec.template.spec.containers[0].env[1].value =
       repository.tag + '-' + id;
     job.spec.template.spec.containers[0].env[2].value = appName;
+    job.spec.template.spec.volumes[2].secret.secretName = secretName;
 
     if (buildstrategy === 'buildpacks') {
       // configure build container
