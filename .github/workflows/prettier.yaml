@@ -11,4 +11,4 @@ jobs:
       - uses: actions/checkout@v4         # checkout the repo
       - name: Install dependencies        # install dependencies
         run: yarn install --frozen-lockfile
-      - run: yarn check-format
+      - run: yarn format-check
