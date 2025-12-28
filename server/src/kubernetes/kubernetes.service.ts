@@ -1277,6 +1277,7 @@ export class KubernetesService {
       ref: string;
     },
     repository: {
+      registry: string;
       image: string;
       tag: string;
     },
@@ -1308,7 +1309,8 @@ export class KubernetesService {
     job.spec.template.spec.serviceAccount = appName + '-kuberoapp';
     job.spec.template.spec.initContainers[0].env[0].value = git.url;
     job.spec.template.spec.initContainers[0].env[1].value = git.ref;
-    job.spec.template.spec.containers[0].env[0].value = repository.image;
+    const imageUrl = repository.registry + '/' + repository.image
+    job.spec.template.spec.containers[0].env[0].value = imageUrl;
     job.spec.template.spec.containers[0].env[1].value =
       repository.tag + '-' + id;
     job.spec.template.spec.containers[0].env[2].value = appName;
@@ -1316,18 +1318,18 @@ export class KubernetesService {
     if (buildstrategy === 'buildpacks') {
       // configure build container
       job.spec.template.spec.initContainers[2].args[1] =
-        repository.image + ':' + repository.tag + '-' + id;
+        imageUrl + ':' + repository.tag + '-' + id;
     }
     if (buildstrategy === 'dockerfile') {
       // configure push container
       job.spec.template.spec.initContainers[1].env[1].value =
-        repository.image + ':' + repository.tag + '-' + id;
+        imageUrl + ':' + repository.tag + '-' + id;
       job.spec.template.spec.initContainers[1].env[2].value = dockerfilePath;
     }
     if (buildstrategy === 'nixpacks') {
       // configure push container
       job.spec.template.spec.initContainers[2].env[1].value =
-        repository.image + ':' + repository.tag + '-' + id;
+        imageUrl + ':' + repository.tag + '-' + id;
       job.spec.template.spec.initContainers[2].env[2].value = dockerfilePath;
     }
 
