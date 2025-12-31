@@ -158,6 +158,12 @@ model Permission {
   updatedAt DateTime @updatedAt
 }
 
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String
+  expiresAt   DateTime
+}
 
 // CONFIGURATION 
 model Runpack {
