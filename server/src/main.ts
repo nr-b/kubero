@@ -5,10 +5,13 @@ import { LogLevel } from '@nestjs/common/services/logger.service';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { DatabaseService } from './database/database.service';
+import session from 'express-session';
 
 import helmet from 'helmet';
 
 import * as dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import { PrismaSessionStore } from '@quixo3/prisma-session-store';
 dotenv.config();
 
 async function bootstrap() {
@@ -60,6 +63,25 @@ async function bootstrap() {
     */
     }),
   );
+
+  if (!process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET unset!");
+  }
+
+  app.use(
+    session({
+      store: new PrismaSessionStore(
+        new PrismaClient(),
+        {
+          dbRecordIdIsSessionId: false,
+          checkPeriod: 1000 * 60 * 60 * 12
+        }
+      ),
+      secret: process.env.SESSION_SECRET,
+      resave: false,
+      saveUninitialized: false
+    })
+  )
 
   const config = new DocumentBuilder()
     .setTitle('Kubero')
