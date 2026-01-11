@@ -139,6 +139,7 @@ export class DeploymentsService {
 
     // Create the Build CRD
     try {
+      const image = pipeline + '-' + app;
       await this.kubectl.createBuildJob(
         namespace,
         app,
@@ -150,7 +151,8 @@ export class DeploymentsService {
           url: gitrepo,
         },
         {
-          image: process.env.KUBERO_BUILD_REGISTRY + '/' + pipeline + '-' + app,
+          registry: process.env.KUBERO_BUILD_REGISTRY || "",
+          image: image,
           tag: reference,
         },
       );
