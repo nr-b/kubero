@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { PrismaClient, User as PrismaUser } from '@prisma/client';
+import { Prisma, PrismaClient, User as PrismaUser } from '@prisma/client';
 import * as dotenv from 'dotenv';
 dotenv.config();
 //import * as crypto from 'crypto';
@@ -49,6 +49,50 @@ export class UsersService {
           },
         },
       },
+    });
+  }
+
+  async findOneOrCreateByProviderId(
+    provider: string,
+    providerId: string,
+    username: string,
+    email: string,
+    attrs?: { 
+      roleName?: string
+    }
+  ): Promise<Prisma.UserGetPayload<{ include: { role: true, userGroups: true } }>> {
+    let user = {
+      username: username,
+      email: email,
+      // TODO: what to set password to
+      password: "",
+      role: {
+        connect: {
+          name: attrs?.roleName || process.env.DEFAULT_USER_ROLE || 'guest'
+        }
+      },
+      userGroups: {
+        connect: {
+          name: process.env.DEFAULT_USER_GROUP || 'everyone'
+        }
+      },
+      provider,
+      providerId
+    }
+
+    return this.prisma.user.upsert({
+      where: {
+        provider_providerId: {
+          provider,
+          providerId
+        }
+      },
+      include: {
+        role: true,
+        userGroups: true,
+      },
+      create: user,
+      update: user
     });
   }
 

@@ -3,6 +3,7 @@ import { ConfigService } from '../config/config.service';
 import * as bcrypt from 'bcrypt';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { Strategy } from 'passport-oauth2';
+import { OidcStrategy } from './strategies/oidc.strategy';
 
 jest.mock('bcrypt');
 
@@ -194,11 +195,13 @@ describe('AuthService', () => {
       jest.spyOn(ConfigService, 'getLocalauthEnabled').mockReturnValue(true);
       jest.spyOn(ConfigService, 'getGithubEnabled').mockReturnValue(false);
       jest.spyOn(ConfigService, 'getOauth2Enabled').mockReturnValue(true);
+      jest.spyOn(OidcStrategy, 'isConfigPresent').mockReturnValue(false);
       const result = service.getMethods();
       expect(result).toEqual({
         local: true,
         github: false,
         oauth2: true,
+        oidc: false,
       });
     });
   });

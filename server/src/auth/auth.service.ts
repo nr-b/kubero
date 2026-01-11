@@ -8,6 +8,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
+import { Role } from '@prisma/client';
+import { OidcStrategy } from './strategies/oidc.strategy';
 dotenv.config();
 
 @Injectable()
@@ -89,6 +91,39 @@ export class AuthService {
     };
   }
 
+  private async getPermissions(roleId: string | null) {
+    if (!roleId) {
+      return [];
+    }
+
+    const permissions = await this.rolesService.getPermissions(roleId);
+    return permissions.map((p) => `${p.resource}:${p.action}`);
+  }
+
+  async loginOidc(sub: string, username: string, email: string, attrs?: { roleName?: string }) {
+    const user = await this.usersService.findOneOrCreateByProviderId(
+      "oidc", 
+      sub,
+      username,
+      email,
+      attrs
+    );
+
+    if (!user || !user.roleId) {
+      throw new HttpException("User not found", HttpStatus.NOT_FOUND);
+    }
+
+    const u = {
+      userId: user.id,
+      username: user.username,
+      role: user.role ? user.role.name : 'none',
+      userGroups: user.userGroups ? user.userGroups.map((g) => g.name) : [],
+      permissions: await this.getPermissions(user.roleId),
+      strategy: 'oidc',
+    };
+    return this.jwtService.sign(u);
+  }
+
   async loginOAuth2(reqUser: any) {
     const username = reqUser.username || reqUser.email || reqUser.id;
     const email =
@@ -116,14 +151,13 @@ export class AuthService {
     }
 
     const permissions = await this.rolesService.getPermissions(user.roleId);
-    user.permissions = permissions.map((p) => `${p.resource}:${p.action}`);
 
     const u = {
       userId: user.id,
       username: user.username,
       role: user.role ? user.role.name : 'none',
       userGroups: user.userGroups ? user.userGroups.map((g) => g.name) : [],
-      permissions: user.permissions ? user.permissions : [],
+      permissions: permissions.map((p) => `${p.resource}:${p.action}`),
       strategy: 'oauth2',
     };
     return this.jwtService.sign(u);
@@ -186,6 +220,7 @@ export class AuthService {
       local: ConfigService.getLocalauthEnabled(),
       github: ConfigService.getGithubEnabled(),
       oauth2: ConfigService.getOauth2Enabled(),
+      oidc: OidcStrategy.isConfigPresent()
     };
     return methods;
   }
