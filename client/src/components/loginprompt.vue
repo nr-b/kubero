@@ -91,6 +91,21 @@
                 Login with Oauth2
             </v-btn>
         </div>
+        <div v-if="authMethods.oidc" class="py-5">
+            <v-btn
+                block
+                depressed
+                color_not="#3C79A6"
+                color="#AA4242"
+                href="/api/auth/oidc"
+                style='color:white !important'>
+                <v-icon left
+                style='color:white !important'>
+                    mdi-cog
+                </v-icon>
+                Login with OIDC
+            </v-btn>
+        </div>
         </v-card-text>
         </v-card>
     </v-row>
@@ -113,7 +128,8 @@ export default defineComponent({
         authMethods : {
             "local": false,
             "github": false,
-            "oauth2": false
+            "oauth2": false,
+            "oidc": false
         }
     }),
     computed: {
