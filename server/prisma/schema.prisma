@@ -91,8 +91,8 @@ model User {
   lastLogin DateTime?
   lastIp    String? // Last known IP address
 
-  provider     String? @default("local") // e.g., "github", "local", ...
-  providerId   String? // ID from the external provider (e.g., GitHub ID)
+  provider     String @default("local") // e.g., "github", "local", ...
+  providerId   String @default(cuid()) // ID from the external provider (e.g., GitHub ID)
   providerData String? // JSON string for additional provider data
 
   tokens Token[]
@@ -100,6 +100,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   Audit     Audit[]
+
+  @@unique([provider, providerId])
 }
 
 model UserGroup {

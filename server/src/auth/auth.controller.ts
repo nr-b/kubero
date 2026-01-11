@@ -6,6 +6,7 @@ import {
   Get,
   Response,
   Body,
+  BadRequestException,
   //HttpCode,
   //HttpStatus,
 } from '@nestjs/common';
@@ -139,6 +140,33 @@ export class AuthController {
   async oauth2Callback(@Request() req: any, @Response() res: any) {
     //console.log(req.user);
     const token = await this.authService.loginOAuth2(req.user);
+    res.cookie('kubero.JWT_TOKEN', token);
+    res.redirect('/');
+  }
+
+  @Get('oidc')
+  @UseGuards(AuthGuard('openidconnect'))
+  //@ApiBearerAuth('OAuth2')
+  async oidc() {
+    return 'auth';
+  }
+
+  @Get('oidc/callback')
+  @UseGuards(AuthGuard('openidconnect'))
+  //@ApiBearerAuth('OAuth2')
+  async oidcCallback(@Request() req: any, @Response() res: any) {
+    //console.log(req.user);
+    if (!req.user.id || !req.user.username || !req.user.email) {
+      throw new BadRequestException();
+    }
+    const token = await this.authService.loginOidc(
+      req.user.id,
+      req.user.username,
+      req.user.email,
+      {
+        roleName: req.user.role
+      }
+    );
     res.cookie('kubero.JWT_TOKEN', token);
     res.redirect('/');
   }

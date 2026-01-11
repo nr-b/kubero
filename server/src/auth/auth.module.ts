@@ -13,6 +13,7 @@ import { ConfigService } from '../config/config.service';
 import { ConfigModule } from '../config/config.module';
 import * as dotenv from 'dotenv';
 import { RolesService } from '../roles/roles.service';
+import { OidcStrategy } from './strategies/oidc.strategy';
 dotenv.config();
 
 const providers: Provider[] = [AuthService, JwtStrategy, RolesService];
@@ -21,6 +22,14 @@ if (ConfigService.getOauth2Enabled()) {
 }
 if (ConfigService.getGithubEnabled()) {
   providers.push(GithubStrategy);
+}
+if (OidcStrategy.isConfigPresent()) {
+  providers.push({
+    provide: OidcStrategy,
+    useFactory: async () => {
+      return OidcStrategy.make()
+    }
+  });
 }
 
 @Module({

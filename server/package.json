@@ -63,6 +63,7 @@
     "gitea-js": "^1.23.0",
     "helmet": "^8.0.0",
     "nest-commander": "^3.13.0",
+    "openid-client": "^6.8.1",
     "passport": "^0.7.0",
     "passport-github2": "^0.1.12",
     "passport-jwt": "^4.0.1",
@@ -126,7 +127,9 @@
     },
     "moduleNameMapper": {
       "^@octokit/core$": "<rootDir>/__mocks__/@octokit/core.js",
-      "^jose$": "<rootDir>/__mocks__/jose/core.js"
+      "^jose$": "<rootDir>/__mocks__/jose/core.js",
+      "^openid-client$": "<rootDir>/__mocks__/openid-client/core.js",
+      "^openid-client/passport$": "<rootDir>/__mocks__/openid-client/passport.js"
     },
     "setupFilesAfterEnv": [
       "<rootDir>/../jest-setup.js"
